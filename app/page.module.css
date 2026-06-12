@@ -1,0 +1,393 @@
+.main {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+}
+
+.card {
+  width: 100%;
+  max-width: 520px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+  border-radius: 22px;
+  box-shadow: 0 24px 48px rgba(6, 78, 59, 0.25);
+  padding: 30px 30px 34px;
+}
+
+/* ---------- ヘッダー ---------- */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #065f46;
+}
+
+.subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* 完了率リング */
+.ringWrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+}
+
+.ringProgress {
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ringText {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: #059669;
+}
+
+/* ---------- 追加フォーム ---------- */
+.form {
+  margin-bottom: 18px;
+}
+
+.inputRow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.input {
+  flex: 1;
+  padding: 13px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+}
+
+.addButton {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+  color: #fff;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+  transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+}
+
+.addButton:hover {
+  opacity: 0.92;
+  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.45);
+}
+
+.addButton:active {
+  transform: scale(0.94);
+}
+
+.optionRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 120px;
+}
+
+.fieldLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  padding-left: 2px;
+}
+
+.select {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  background: #fff;
+  color: #1f2937;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.select:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+}
+
+/* ---------- フィルター ---------- */
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  margin-bottom: 18px;
+  background: #f0fdf4;
+  border: 1px solid #dcfce7;
+  border-radius: 14px;
+}
+
+.filterGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filterLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: #047857;
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 5px 13px;
+  border: 1px solid #d1fae5;
+  border-radius: 999px;
+  background: #fff;
+  color: #374151;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chip:hover {
+  border-color: #34d399;
+}
+
+.chipActive {
+  background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+}
+
+/* ---------- リスト ---------- */
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 60px;
+}
+
+.empty {
+  text-align: center;
+  color: #9ca3af;
+  padding: 32px 0;
+  font-size: 14px;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 14px;
+  border-radius: 13px;
+  background: #f9fafb;
+  border-left: 4px solid #d1d5db;
+  transition: background 0.15s, box-shadow 0.15s;
+  animation: itemIn 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.item:hover {
+  background: #f3f4f6;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+
+/* 優先度ごとの左ボーダー色 */
+.p_high {
+  border-left-color: #ef4444;
+}
+.p_medium {
+  border-left-color: #f59e0b;
+}
+.p_low {
+  border-left-color: #10b981;
+}
+
+@keyframes itemIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.check {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  border: 2px solid #cbd5e1;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.check:hover {
+  border-color: #059669;
+}
+
+.checked {
+  background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+  border-color: transparent;
+  animation: pop 0.32s cubic-bezier(0.18, 1.4, 0.4, 1);
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.text {
+  font-size: 15px;
+  word-break: break-word;
+  transition: color 0.2s;
+}
+
+.completed {
+  text-decoration: line-through;
+  color: #9ca3af;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  line-height: 1.5;
+}
+
+/* カテゴリのバッジ色 */
+.cat_work {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.cat_private {
+  background: #fce7f3;
+  color: #be185d;
+}
+.cat_other {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+/* 優先度のバッジ色 */
+.pri_high {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.pri_medium {
+  background: #fef3c7;
+  color: #b45309;
+}
+.pri_low {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.due {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.overdue {
+  color: #dc2626;
+}
+
+.deleteButton {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  transition: color 0.15s, transform 0.1s;
+}
+
+.deleteButton:hover {
+  color: #ef4444;
+}
+
+.deleteButton:active {
+  transform: scale(0.85);
+}
