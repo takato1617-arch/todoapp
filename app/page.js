@@ -642,6 +642,9 @@ function SortableTodoItem({
     isDragging,
   } = useSortable({ id: todo.id, disabled: isEditing });
 
+  // 削除の確認状態（誤操作防止のためワンクッション置く）
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -781,21 +784,44 @@ function SortableTodoItem({
         </div>
       </div>
 
-      <button
-        className={styles.editButton}
-        onClick={() => startEdit(todo)}
-        aria-label="編集"
-        title="編集"
-      >
-        ✎
-      </button>
-      <button
-        className={styles.deleteButton}
-        onClick={() => deleteTodo(todo.id)}
-        aria-label="削除"
-      >
-        ×
-      </button>
+      {confirmingDelete ? (
+        <div className={styles.confirmBar} role="alertdialog" aria-label="削除の確認">
+          <span className={styles.confirmText}>削除しますか？</span>
+          <button
+            type="button"
+            className={styles.confirmCancel}
+            onClick={() => setConfirmingDelete(false)}
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            className={styles.confirmDelete}
+            onClick={() => deleteTodo(todo.id)}
+          >
+            削除
+          </button>
+        </div>
+      ) : (
+        <div className={styles.itemActions}>
+          <button
+            className={styles.editButton}
+            onClick={() => startEdit(todo)}
+            aria-label="編集"
+            title="編集"
+          >
+            ✎
+          </button>
+          <button
+            className={styles.deleteButton}
+            onClick={() => setConfirmingDelete(true)}
+            aria-label="削除"
+            title="削除"
+          >
+            ×
+          </button>
+        </div>
+      )}
     </li>
   );
 }
