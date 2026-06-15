@@ -10,6 +10,7 @@ function toClient(row) {
     priority: row.priority,
     category: row.category,
     dueDate: row.due_date ?? "",
+    position: row.position,
     createdAt: row.created_at,
   };
 }

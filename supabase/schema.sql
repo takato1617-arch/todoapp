@@ -21,6 +21,7 @@ create table if not exists todos (
   priority   text not null default 'medium',
   category   text,
   due_date   date,
+  position   double precision,
   created_at timestamptz not null default now()
 );
 

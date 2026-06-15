@@ -670,3 +670,32 @@
   background: #f3f4f6;
   color: #374151;
 }
+
+/* ---------- ドラッグハンドル / 並び替え ---------- */
+.dragHandle {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 2px;
+  cursor: grab;
+  touch-action: none;
+  border-radius: 8px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.dragHandle:hover {
+  color: #059669;
+  background: #ecfdf5;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.item.dragging {
+  box-shadow: 0 12px 24px rgba(6, 78, 59, 0.22);
+  background: #ffffff;
+}

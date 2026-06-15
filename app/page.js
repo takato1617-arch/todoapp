@@ -1,6 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  arrayMove,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import styles from "./page.module.css";
 
 // ----- 選択肢の定義 -----
@@ -284,6 +300,41 @@ function TodoApp({ onLogout }) {
     [todos, filterCategory, filterPriority]
   );
 
+  // ----- 並び替え（ドラッグ&ドロップ） -----
+  const sensors = useSensors(
+    // 6px以上動かしたらドラッグ開始（タップやボタン操作と区別する）
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  async function handleDragEnd(event) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = visibleTodos.findIndex((t) => t.id === active.id);
+    const newIndex = visibleTodos.findIndex((t) => t.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    // 表示中リストを並べ替え、隠れている項目の位置は保ったまま全体へ反映
+    const newVisible = arrayMove(visibleTodos, oldIndex, newIndex);
+    const visibleIds = new Set(visibleTodos.map((t) => t.id));
+    let vi = 0;
+    const newTodos = todos.map((t) =>
+      visibleIds.has(t.id) ? newVisible[vi++] : t
+    );
+    setTodos(newTodos);
+
+    // サーバーに新しい並び順を保存
+    try {
+      await api("/api/todos/reorder", {
+        method: "POST",
+        body: JSON.stringify({ ids: newTodos.map((t) => t.id) }),
+      });
+    } catch (err) {
+      if (err.status === 401) onLogout();
+    }
+  }
+
   // 完了率（フィルター後の表示対象を基準にする）
   const total = visibleTodos.length;
   const done = visibleTodos.filter((t) => t.completed).length;
@@ -440,165 +491,238 @@ function TodoApp({ onLogout }) {
           />
         </div>
 
-        {/* リスト */}
-        <ul className={styles.list}>
-          {visibleTodos.length === 0 && (
-            <li className={styles.empty}>
-              {todos.length === 0
-                ? "まだ項目がありません"
-                : "条件に一致する項目がありません"}
-            </li>
-          )}
-          {visibleTodos.map((todo) => {
-            const overdue = !todo.completed && isOverdue(todo.dueDate);
-            const cat = getCategory(todo.category);
-
-            // 編集モード
-            if (editingId === todo.id) {
-              return (
-                <li
-                  key={todo.id}
-                  className={`${styles.item} ${styles.editing} ${
-                    styles[`p_${editPriority}`]
-                  }`}
-                >
-                  <form onSubmit={saveEdit} className={styles.editForm}>
-                    <input
-                      className={styles.input}
-                      type="text"
-                      value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
-                      aria-label="Todoを編集"
-                      autoFocus
-                    />
-                    <div className={styles.optionRow}>
-                      <label className={styles.field}>
-                        <span className={styles.fieldLabel}>優先度</span>
-                        <select
-                          className={styles.select}
-                          value={editPriority}
-                          onChange={(e) => setEditPriority(e.target.value)}
-                        >
-                          {PRIORITIES.map((p) => (
-                            <option key={p.value} value={p.value}>
-                              {p.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className={styles.field}>
-                        <span className={styles.fieldLabel}>カテゴリ</span>
-                        <select
-                          className={styles.select}
-                          value={editCategory}
-                          onChange={(e) => setEditCategory(e.target.value)}
-                        >
-                          {categories.map((c) => (
-                            <option key={c.value} value={c.value}>
-                              {c.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className={styles.field}>
-                        <span className={styles.fieldLabel}>締め切り</span>
-                        <input
-                          className={styles.select}
-                          type="date"
-                          value={editDueDate}
-                          onChange={(e) => setEditDueDate(e.target.value)}
-                        />
-                      </label>
-                    </div>
-                    <div className={styles.editActions}>
-                      <button
-                        type="button"
-                        className={styles.cancelButton}
-                        onClick={cancelEdit}
-                      >
-                        キャンセル
-                      </button>
-                      <button type="submit" className={styles.saveButton}>
-                        保存
-                      </button>
-                    </div>
-                  </form>
+        {/* リスト（ドラッグで並び替え可能） */}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={visibleTodos.map((t) => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <ul className={styles.list}>
+              {visibleTodos.length === 0 && (
+                <li className={styles.empty}>
+                  {todos.length === 0
+                    ? "まだ項目がありません"
+                    : "条件に一致する項目がありません"}
                 </li>
-              );
-            }
-
-            // 通常表示
-            return (
-              <li
-                key={todo.id}
-                className={`${styles.item} ${styles[`p_${todo.priority}`]}`}
-              >
-                <button
-                  className={`${styles.check} ${
-                    todo.completed ? styles.checked : ""
-                  }`}
-                  onClick={() => toggleTodo(todo.id)}
-                  aria-label={todo.completed ? "未完了に戻す" : "完了にする"}
-                >
-                  {todo.completed ? "✓" : ""}
-                </button>
-
-                <div className={styles.body}>
-                  <span
-                    className={`${styles.text} ${
-                      todo.completed ? styles.completed : ""
-                    }`}
-                  >
-                    {todo.text}
-                  </span>
-                  <div className={styles.meta}>
-                    <span
-                      className={styles.badge}
-                      style={{ background: cat.bg, color: cat.text }}
-                    >
-                      {cat.label}
-                    </span>
-                    <span
-                      className={`${styles.badge} ${
-                        styles[`pri_${todo.priority}`]
-                      }`}
-                    >
-                      優先度: {priorityLabel(todo.priority)}
-                    </span>
-                    {todo.dueDate && (
-                      <span
-                        className={`${styles.due} ${
-                          overdue ? styles.overdue : ""
-                        }`}
-                      >
-                        📅 {formatDate(todo.dueDate)}
-                        {overdue ? "（期限切れ）" : ""}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  className={styles.editButton}
-                  onClick={() => startEdit(todo)}
-                  aria-label="編集"
-                  title="編集"
-                >
-                  ✎
-                </button>
-                <button
-                  className={styles.deleteButton}
-                  onClick={() => deleteTodo(todo.id)}
-                  aria-label="削除"
-                >
-                  ×
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+              )}
+              {visibleTodos.map((todo) => (
+                <SortableTodoItem
+                  key={todo.id}
+                  todo={todo}
+                  isEditing={editingId === todo.id}
+                  categories={categories}
+                  getCategory={getCategory}
+                  toggleTodo={toggleTodo}
+                  deleteTodo={deleteTodo}
+                  startEdit={startEdit}
+                  saveEdit={saveEdit}
+                  cancelEdit={cancelEdit}
+                  editText={editText}
+                  setEditText={setEditText}
+                  editPriority={editPriority}
+                  setEditPriority={setEditPriority}
+                  editCategory={editCategory}
+                  setEditCategory={setEditCategory}
+                  editDueDate={editDueDate}
+                  setEditDueDate={setEditDueDate}
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
       </div>
     </main>
+  );
+}
+
+// ===================== 並び替え可能なTodo項目 =====================
+function SortableTodoItem({
+  todo,
+  isEditing,
+  categories,
+  getCategory,
+  toggleTodo,
+  deleteTodo,
+  startEdit,
+  saveEdit,
+  cancelEdit,
+  editText,
+  setEditText,
+  editPriority,
+  setEditPriority,
+  editCategory,
+  setEditCategory,
+  editDueDate,
+  setEditDueDate,
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: todo.id, disabled: isEditing });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.85 : undefined,
+  };
+
+  // 編集モード
+  if (isEditing) {
+    return (
+      <li
+        ref={setNodeRef}
+        style={style}
+        className={`${styles.item} ${styles.editing} ${
+          styles[`p_${editPriority}`]
+        }`}
+      >
+        <form onSubmit={saveEdit} className={styles.editForm}>
+          <input
+            className={styles.input}
+            type="text"
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            aria-label="Todoを編集"
+            autoFocus
+          />
+          <div className={styles.optionRow}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>優先度</span>
+              <select
+                className={styles.select}
+                value={editPriority}
+                onChange={(e) => setEditPriority(e.target.value)}
+              >
+                {PRIORITIES.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>カテゴリ</span>
+              <select
+                className={styles.select}
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value)}
+              >
+                {categories.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>締め切り</span>
+              <input
+                className={styles.select}
+                type="date"
+                value={editDueDate}
+                onChange={(e) => setEditDueDate(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className={styles.editActions}>
+            <button
+              type="button"
+              className={styles.cancelButton}
+              onClick={cancelEdit}
+            >
+              キャンセル
+            </button>
+            <button type="submit" className={styles.saveButton}>
+              保存
+            </button>
+          </div>
+        </form>
+      </li>
+    );
+  }
+
+  // 通常表示
+  const overdue = !todo.completed && isOverdue(todo.dueDate);
+  const cat = getCategory(todo.category);
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`${styles.item} ${styles[`p_${todo.priority}`]} ${
+        isDragging ? styles.dragging : ""
+      }`}
+    >
+      {/* ドラッグ用ハンドル */}
+      <button
+        type="button"
+        className={styles.dragHandle}
+        aria-label="ドラッグして並び替え"
+        title="ドラッグして並び替え"
+        {...attributes}
+        {...listeners}
+      >
+        ⠿
+      </button>
+
+      <button
+        className={`${styles.check} ${todo.completed ? styles.checked : ""}`}
+        onClick={() => toggleTodo(todo.id)}
+        aria-label={todo.completed ? "未完了に戻す" : "完了にする"}
+      >
+        {todo.completed ? "✓" : ""}
+      </button>
+
+      <div className={styles.body}>
+        <span
+          className={`${styles.text} ${todo.completed ? styles.completed : ""}`}
+        >
+          {todo.text}
+        </span>
+        <div className={styles.meta}>
+          <span
+            className={styles.badge}
+            style={{ background: cat.bg, color: cat.text }}
+          >
+            {cat.label}
+          </span>
+          <span className={`${styles.badge} ${styles[`pri_${todo.priority}`]}`}>
+            優先度: {priorityLabel(todo.priority)}
+          </span>
+          {todo.dueDate && (
+            <span className={`${styles.due} ${overdue ? styles.overdue : ""}`}>
+              📅 {formatDate(todo.dueDate)}
+              {overdue ? "（期限切れ）" : ""}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <button
+        className={styles.editButton}
+        onClick={() => startEdit(todo)}
+        aria-label="編集"
+        title="編集"
+      >
+        ✎
+      </button>
+      <button
+        className={styles.deleteButton}
+        onClick={() => deleteTodo(todo.id)}
+        aria-label="削除"
+      >
+        ×
+      </button>
+    </li>
   );
 }
 
