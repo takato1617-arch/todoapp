@@ -153,6 +153,9 @@ function TodoApp({ onLogout }) {
   const [newCategory, setNewCategory] = useState("");
   const [categoryError, setCategoryError] = useState("");
 
+  // 設定モーダルの開閉
+  const [showSettings, setShowSettings] = useState(false);
+
   // 編集中の項目
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
@@ -358,6 +361,14 @@ function TodoApp({ onLogout }) {
           </div>
           <div className={styles.headerActions}>
             <ProgressRing rate={rate} />
+            <button
+              className={styles.settingsButton}
+              onClick={() => setShowSettings(true)}
+              aria-label="設定"
+              title="設定"
+            >
+              ⚙
+            </button>
             <button className={styles.logoutButton} onClick={logout}>
               ログアウト
             </button>
@@ -426,52 +437,6 @@ function TodoApp({ onLogout }) {
           </div>
         </form>
 
-        {/* カテゴリ管理 */}
-        <section className={styles.categoryManager}>
-          <span className={styles.categoryManagerLabel}>カテゴリ管理</span>
-          <div className={styles.categoryTags}>
-            {categories.map((c) => (
-              <span
-                key={c.value}
-                className={styles.categoryTag}
-                style={{ background: c.bg, color: c.text }}
-              >
-                {c.label}
-                {isCustomCategory(c.value) && (
-                  <button
-                    type="button"
-                    className={styles.categoryTagDelete}
-                    onClick={() => deleteCategory(c.value)}
-                    aria-label={`カテゴリ「${c.label}」を削除`}
-                    title="このカテゴリを削除"
-                  >
-                    ×
-                  </button>
-                )}
-              </span>
-            ))}
-          </div>
-          <form onSubmit={addCategory} className={styles.categoryAddRow}>
-            <input
-              className={styles.categoryInput}
-              type="text"
-              value={newCategory}
-              onChange={(e) => {
-                setNewCategory(e.target.value);
-                if (categoryError) setCategoryError("");
-              }}
-              placeholder="新しいカテゴリ名..."
-              aria-label="新しいカテゴリ名"
-            />
-            <button type="submit" className={styles.categoryAddButton}>
-              作成
-            </button>
-          </form>
-          {categoryError && (
-            <span className={styles.categoryError}>{categoryError}</span>
-          )}
-        </section>
-
         {/* フィルター */}
         <div className={styles.filters}>
           <FilterGroup
@@ -535,7 +500,116 @@ function TodoApp({ onLogout }) {
           </SortableContext>
         </DndContext>
       </div>
+
+      {showSettings && (
+        <SettingsModal
+          categories={categories}
+          isCustomCategory={isCustomCategory}
+          deleteCategory={deleteCategory}
+          addCategory={addCategory}
+          newCategory={newCategory}
+          setNewCategory={setNewCategory}
+          categoryError={categoryError}
+          setCategoryError={setCategoryError}
+          onClose={() => {
+            setShowSettings(false);
+            setNewCategory("");
+            setCategoryError("");
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+// ===================== 設定モーダル（カテゴリ管理） =====================
+function SettingsModal({
+  categories,
+  isCustomCategory,
+  deleteCategory,
+  addCategory,
+  newCategory,
+  setNewCategory,
+  categoryError,
+  setCategoryError,
+  onClose,
+}) {
+  // Escキーで閉じる
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-label="設定"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className={styles.modalHeader}>
+          <h2 className={styles.modalTitle}>設定</h2>
+          <button
+            type="button"
+            className={styles.modalClose}
+            onClick={onClose}
+            aria-label="閉じる"
+          >
+            ×
+          </button>
+        </header>
+
+        <section className={styles.modalSection}>
+          <span className={styles.categoryManagerLabel}>カテゴリ管理</span>
+          <div className={styles.categoryTags}>
+            {categories.map((c) => (
+              <span
+                key={c.value}
+                className={styles.categoryTag}
+                style={{ background: c.bg, color: c.text }}
+              >
+                {c.label}
+                {isCustomCategory(c.value) && (
+                  <button
+                    type="button"
+                    className={styles.categoryTagDelete}
+                    onClick={() => deleteCategory(c.value)}
+                    aria-label={`カテゴリ「${c.label}」を削除`}
+                    title="このカテゴリを削除"
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+          <form onSubmit={addCategory} className={styles.categoryAddRow}>
+            <input
+              className={styles.categoryInput}
+              type="text"
+              value={newCategory}
+              onChange={(e) => {
+                setNewCategory(e.target.value);
+                if (categoryError) setCategoryError("");
+              }}
+              placeholder="新しいカテゴリ名..."
+              aria-label="新しいカテゴリ名"
+            />
+            <button type="submit" className={styles.categoryAddButton}>
+              作成
+            </button>
+          </form>
+          {categoryError && (
+            <span className={styles.categoryError}>{categoryError}</span>
+          )}
+        </section>
+      </div>
+    </div>
   );
 }
 

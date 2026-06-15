@@ -150,18 +150,89 @@
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
 }
 
-/* ---------- カテゴリ管理 ---------- */
-.categoryManager {
+/* ---------- 設定モーダル ---------- */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 78, 59, 0.35);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  z-index: 50;
+  animation: overlayIn 0.18s ease;
+}
+
+@keyframes overlayIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  width: 100%;
+  max-width: 440px;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 24px 48px rgba(6, 78, 59, 0.3);
+  padding: 24px;
+  animation: modalIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.modalTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: #065f46;
+}
+
+.modalClose {
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  transition: color 0.15s, transform 0.1s;
+}
+
+.modalClose:hover {
+  color: #374151;
+}
+
+.modalClose:active {
+  transform: scale(0.85);
+}
+
+.modalSection {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px;
-  margin-bottom: 18px;
-  background: #fafafa;
-  border: 1px solid #eef0f2;
-  border-radius: 14px;
 }
 
+/* ---------- カテゴリ管理 ---------- */
 .categoryManagerLabel {
   font-size: 12px;
   font-weight: 700;
@@ -653,6 +724,28 @@
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.settingsButton {
+  border: 1.5px solid #d1d5db;
+  background: #fff;
+  color: #6b7280;
+  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s, transform 0.4s;
+}
+
+.settingsButton:hover {
+  background: #f3f4f6;
+  color: #059669;
+  transform: rotate(60deg);
 }
 
 .logoutButton {
