@@ -558,3 +558,115 @@
 .saveButton:active {
   transform: scale(0.96);
 }
+
+/* ---------- ログイン画面 ---------- */
+.gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.gateCard {
+  width: 100%;
+  max-width: 360px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+  border-radius: 22px;
+  box-shadow: 0 24px 48px rgba(6, 78, 59, 0.25);
+  padding: 32px 28px;
+  text-align: center;
+}
+
+.gateTitle {
+  font-size: 24px;
+  font-weight: 700;
+  color: #065f46;
+  margin-bottom: 6px;
+}
+
+.gateSubtitle {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 22px;
+}
+
+.gateInput {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 12px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.gateInput:focus {
+  border-color: #10b981;
+}
+
+.gateButton {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #34d399, #059669);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.2s;
+}
+
+.gateButton:hover {
+  opacity: 0.92;
+}
+
+.gateButton:active {
+  transform: scale(0.97);
+}
+
+.gateButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.gateError {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #dc2626;
+}
+
+.loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #065f46;
+  font-size: 15px;
+}
+
+/* ---------- ヘッダーのログアウト ---------- */
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logoutButton {
+  border: 1.5px solid #d1d5db;
+  background: #fff;
+  color: #6b7280;
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.logoutButton:hover {
+  background: #f3f4f6;
+  color: #374151;
+}

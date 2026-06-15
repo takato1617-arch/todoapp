@@ -3,21 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import styles from "./page.module.css";
 
-const STORAGE_KEY = "todos";
-const CATEGORY_STORAGE_KEY = "todo-categories";
-
 // ----- 選択肢の定義 -----
 const PRIORITIES = [
   { value: "high", label: "高" },
   { value: "medium", label: "中" },
   { value: "low", label: "低" },
-];
-
-// 初期カテゴリ（色データを持たせ、ユーザー作成カテゴリと同じ構造にする）
-const DEFAULT_CATEGORIES = [
-  { value: "work", label: "仕事", bg: "#dbeafe", text: "#1d4ed8" },
-  { value: "private", label: "プライベート", bg: "#fce7f3", text: "#be185d" },
-  { value: "other", label: "その他", bg: "#e5e7eb", text: "#4b5563" },
 ];
 
 // 新規カテゴリに順番に割り当てる配色パレット
@@ -49,27 +39,99 @@ function isOverdue(d) {
   return new Date(d + "T00:00:00") < today;
 }
 
-// 旧フォーマット（text/completedのみ）も読み込めるよう補完する
-function normalize(todo) {
-  return {
-    id: todo.id ?? crypto.randomUUID(),
-    text: todo.text ?? "",
-    completed: !!todo.completed,
-    priority: todo.priority ?? "medium",
-    category: todo.category ?? "other",
-    dueDate: todo.dueDate ?? "",
-    createdAt: todo.createdAt ?? Date.now(),
-  };
+// fetch のラッパー。エラー時は例外を投げる。
+async function api(path, options) {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const err = new Error(body.error || `エラー (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.status === 204 ? null : res.json();
 }
 
 export default function Home() {
+  // 認証状態: "checking" | "out" | "in"
+  const [authState, setAuthState] = useState("checking");
+
+  // 起動時にセッションを確認
+  useEffect(() => {
+    api("/api/session")
+      .then((d) => setAuthState(d.authenticated ? "in" : "out"))
+      .catch(() => setAuthState("out"));
+  }, []);
+
+  if (authState === "checking") {
+    return <main className={styles.loading}>読み込み中...</main>;
+  }
+  if (authState === "out") {
+    return <LoginGate onSuccess={() => setAuthState("in")} />;
+  }
+  return <TodoApp onLogout={() => setAuthState("out")} />;
+}
+
+// ===================== ログイン画面 =====================
+function LoginGate({ onSuccess }) {
+  const [passphrase, setPassphrase] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!passphrase) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await api("/api/login", {
+        method: "POST",
+        body: JSON.stringify({ passphrase }),
+      });
+      onSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main className={styles.gate}>
+      <form className={styles.gateCard} onSubmit={submit}>
+        <h1 className={styles.gateTitle}>Todo</h1>
+        <p className={styles.gateSubtitle}>合言葉を入力してください</p>
+        <input
+          className={styles.gateInput}
+          type="password"
+          value={passphrase}
+          onChange={(e) => setPassphrase(e.target.value)}
+          placeholder="合言葉"
+          aria-label="合言葉"
+          autoFocus
+        />
+        <button className={styles.gateButton} type="submit" disabled={submitting}>
+          {submitting ? "確認中..." : "入る"}
+        </button>
+        {error && <p className={styles.gateError}>{error}</p>}
+      </form>
+    </main>
+  );
+}
+
+// ===================== Todo本体 =====================
+function TodoApp({ onLogout }) {
   const [todos, setTodos] = useState([]);
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState("");
+
   const [input, setInput] = useState("");
   const [priority, setPriority] = useState("medium");
-  const [category, setCategory] = useState("work");
+  const [category, setCategory] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [loaded, setLoaded] = useState(false);
 
   // 新規カテゴリ作成
   const [newCategory, setNewCategory] = useState("");
@@ -79,7 +141,7 @@ export default function Home() {
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
   const [editPriority, setEditPriority] = useState("medium");
-  const [editCategory, setEditCategory] = useState("work");
+  const [editCategory, setEditCategory] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
 
   // フィルター
@@ -95,63 +157,56 @@ export default function Home() {
 
   const getCategory = (v) => categoryMap.get(v) ?? FALLBACK_CATEGORY;
 
-  // 初回マウント時に localStorage から読み込む
+  // 初回: サーバーから読み込む
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setTodos(JSON.parse(saved).map(normalize));
+    Promise.all([api("/api/todos"), api("/api/categories")])
+      .then(([t, c]) => {
+        setTodos(t);
+        setCategories(c);
+        if (c.length > 0) setCategory(c[0].value);
+        setLoaded(true);
+      })
+      .catch((err) => {
+        if (err.status === 401) {
+          onLogout();
+        } else {
+          setLoadError(err.message);
+          setLoaded(true);
+        }
+      });
+  }, [onLogout]);
 
-      const savedCats = localStorage.getItem(CATEGORY_STORAGE_KEY);
-      if (savedCats) {
-        const parsed = JSON.parse(savedCats);
-        if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
-      }
-    } catch {
-      // 読み込み失敗時は初期値のまま
-    }
-    setLoaded(true);
-  }, []);
+  async function logout() {
+    await api("/api/logout", { method: "POST" }).catch(() => {});
+    onLogout();
+  }
 
-  // todos が変わるたびに保存する（初回読み込み完了後のみ）
-  useEffect(() => {
-    if (!loaded) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-  }, [todos, loaded]);
-
-  // categories が変わるたびに保存する
-  useEffect(() => {
-    if (!loaded) return;
-    localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(categories));
-  }, [categories, loaded]);
-
-  function addTodo(e) {
+  async function addTodo(e) {
     e.preventDefault();
     const text = input.trim();
     if (!text) return;
-    setTodos((prev) => [
-      {
-        id: crypto.randomUUID(),
-        text,
-        completed: false,
-        priority,
-        category,
-        dueDate,
-        createdAt: Date.now(),
-      },
-      ...prev,
-    ]);
+    const created = await api("/api/todos", {
+      method: "POST",
+      body: JSON.stringify({ text, priority, category, dueDate }),
+    });
+    setTodos((prev) => [created, ...prev]);
     setInput("");
     setDueDate("");
   }
 
-  function toggleTodo(id) {
-    setTodos((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t))
-    );
+  async function toggleTodo(id) {
+    const target = todos.find((t) => t.id === id);
+    if (!target) return;
+    const updated = await api(`/api/todos/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ completed: !target.completed }),
+    });
+    setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
   }
 
-  function deleteTodo(id) {
+  async function deleteTodo(id) {
     if (editingId === id) cancelEdit();
+    await api(`/api/todos/${id}`, { method: "DELETE" });
     setTodos((prev) => prev.filter((t) => t.id !== id));
   }
 
@@ -160,7 +215,6 @@ export default function Home() {
     setEditingId(todo.id);
     setEditText(todo.text);
     setEditPriority(todo.priority);
-    // カテゴリが削除済みの場合は選択肢の先頭にフォールバック
     setEditCategory(
       categoryMap.has(todo.category) ? todo.category : categories[0]?.value ?? ""
     );
@@ -171,28 +225,25 @@ export default function Home() {
     setEditingId(null);
   }
 
-  function saveEdit(e) {
+  async function saveEdit(e) {
     e?.preventDefault();
     const text = editText.trim();
     if (!text) return;
-    setTodos((prev) =>
-      prev.map((t) =>
-        t.id === editingId
-          ? {
-              ...t,
-              text,
-              priority: editPriority,
-              category: editCategory,
-              dueDate: editDueDate,
-            }
-          : t
-      )
-    );
+    const updated = await api(`/api/todos/${editingId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        text,
+        priority: editPriority,
+        category: editCategory,
+        dueDate: editDueDate,
+      }),
+    });
+    setTodos((prev) => prev.map((t) => (t.id === editingId ? updated : t)));
     setEditingId(null);
   }
 
   // ----- カテゴリ作成 -----
-  function addCategory(e) {
+  async function addCategory(e) {
     e.preventDefault();
     const label = newCategory.trim();
     if (!label) return;
@@ -201,21 +252,23 @@ export default function Home() {
       return;
     }
     const palette = CATEGORY_PALETTE[categories.length % CATEGORY_PALETTE.length];
-    const created = {
-      value: crypto.randomUUID(),
-      label,
-      bg: palette.bg,
-      text: palette.text,
-    };
-    setCategories((prev) => [...prev, created]);
-    setCategory(created.value); // 追加したカテゴリを入力フォームで選択状態にする
-    setNewCategory("");
-    setCategoryError("");
+    try {
+      const created = await api("/api/categories", {
+        method: "POST",
+        body: JSON.stringify({ label, bg: palette.bg, text: palette.text }),
+      });
+      setCategories((prev) => [...prev, created]);
+      setCategory(created.value);
+      setNewCategory("");
+      setCategoryError("");
+    } catch (err) {
+      setCategoryError(err.message);
+    }
   }
 
-  function deleteCategory(value) {
+  async function deleteCategory(value) {
+    await api(`/api/categories/${value}`, { method: "DELETE" });
     setCategories((prev) => prev.filter((c) => c.value !== value));
-    // 入力・フィルターが削除対象を指していたらリセット
     if (category === value) setCategory(categories[0]?.value ?? "");
     if (filterCategory === value) setFilterCategory("all");
   }
@@ -236,9 +289,11 @@ export default function Home() {
   const done = visibleTodos.filter((t) => t.completed).length;
   const rate = total === 0 ? 0 : Math.round((done / total) * 100);
 
-  // 既定カテゴリ以外（ユーザー作成分）は削除可能
-  const isCustomCategory = (value) =>
-    !DEFAULT_CATEGORIES.some((c) => c.value === value);
+  const isCustomCategory = (value) => !categoryMap.get(value)?.isDefault;
+
+  if (!loaded) {
+    return <main className={styles.loading}>読み込み中...</main>;
+  }
 
   return (
     <main className={styles.main}>
@@ -250,8 +305,15 @@ export default function Home() {
               {done} / {total} 完了
             </p>
           </div>
-          <ProgressRing rate={rate} />
+          <div className={styles.headerActions}>
+            <ProgressRing rate={rate} />
+            <button className={styles.logoutButton} onClick={logout}>
+              ログアウト
+            </button>
+          </div>
         </header>
+
+        {loadError && <p className={styles.gateError}>{loadError}</p>}
 
         {/* 追加フォーム */}
         <form onSubmit={addTodo} className={styles.form}>
