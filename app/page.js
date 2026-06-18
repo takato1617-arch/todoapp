@@ -424,22 +424,9 @@ function TodoApp({ onLogout }) {
     setSelectedIds(new Set());
   }
 
-  // 選択中の項目をMarkdownのチェックリストに整形する
+  // 選択中の項目を「>内容。」形式に整形する
   function buildMemo(items) {
-    return items
-      .map((t) => {
-        const cat = getCategory(t.category);
-        const parts = [
-          `カテゴリ: ${cat.label}`,
-          `優先度: ${priorityLabel(t.priority)}`,
-        ];
-        if (t.dueDate) {
-          const overdue = !t.completed && isOverdue(t.dueDate);
-          parts.push(`締切: ${formatDate(t.dueDate)}${overdue ? "（期限切れ）" : ""}`);
-        }
-        return `- [${t.completed ? "x" : " "}] ${t.text}（${parts.join(" / ")}）`;
-      })
-      .join("\n");
+    return items.map((t) => `>${t.text}。`).join("\n");
   }
 
   async function exportMemo() {
