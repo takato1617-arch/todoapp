@@ -10,6 +10,8 @@ create table if not exists categories (
   bg         text not null,
   text       text not null,
   is_default boolean not null default false,
+  -- 親カテゴリの value（NULL = 最上位）。親が消えたら子は最上位に戻す。
+  parent     text references categories(value) on delete set null,
   created_at timestamptz not null default now()
 );
 

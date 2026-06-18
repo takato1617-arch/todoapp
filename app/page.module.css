@@ -397,6 +397,7 @@
 .item {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 13px 14px;
   border-radius: 13px;
@@ -582,12 +583,17 @@
   padding-left: 4px;
 }
 
-/* 削除確認バー */
+/* 削除確認バー（項目下に専用の横一列で表示し、崩れを防ぐ） */
 .confirmBar {
-  flex-shrink: 0;
+  width: 100%;
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px dashed #fecaca;
   animation: confirmIn 0.18s ease;
 }
 
@@ -607,6 +613,7 @@
   font-weight: 700;
   color: #b91c1c;
   white-space: nowrap;
+  margin-right: auto;
 }
 
 .confirmCancel {
@@ -865,4 +872,181 @@
 .item.dragging {
   box-shadow: 0 12px 24px rgba(6, 78, 59, 0.22);
   background: #ffffff;
+}
+
+/* ---------- カテゴリ階層（設定モーダル） ---------- */
+.categoryTree {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.categoryTreeRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.categoryTreeBranch {
+  color: #9ca3af;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.categoryAddForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.categoryParentField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.categoryParentLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+/* ---------- メモ出力ツールバー ---------- */
+.listToolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.memoToggle {
+  border: 1.5px solid #d1d5db;
+  background: #fff;
+  color: #4b5563;
+  border-radius: 10px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.memoToggle:hover {
+  border-color: #34d399;
+  color: #059669;
+}
+
+.memoToggleActive {
+  background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+}
+
+.memoActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.memoCount {
+  font-size: 12px;
+  font-weight: 700;
+  color: #047857;
+}
+
+.memoSubButton {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #4b5563;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.memoSubButton:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.memoSubButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.memoCopyButton {
+  border: none;
+  background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+  color: #fff;
+  border-radius: 8px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.memoCopyButton:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.memoCopyButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* 選択モードの項目 */
+.selectable {
+  cursor: pointer;
+  align-items: center;
+}
+
+.selectable:hover {
+  background: #ecfdf5;
+}
+
+.selected {
+  background: #d1fae5;
+  border-left-color: #059669;
+}
+
+.selectCheck {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  accent-color: #059669;
+  cursor: pointer;
+}
+
+/* メモ出力モーダル */
+.memoHint {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.memoTextarea {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.6;
+  color: #1f2937;
+  background: #f9fafb;
+  resize: vertical;
+  outline: none;
+}
+
+.memoTextarea:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
 }

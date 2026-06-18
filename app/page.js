@@ -151,10 +151,16 @@ function TodoApp({ onLogout }) {
 
   // 新規カテゴリ作成
   const [newCategory, setNewCategory] = useState("");
+  const [newCategoryParent, setNewCategoryParent] = useState("");
   const [categoryError, setCategoryError] = useState("");
 
   // 設定モーダルの開閉
   const [showSettings, setShowSettings] = useState(false);
+
+  // メモ出力（項目を選択してテキスト化）
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [memoText, setMemoText] = useState(null);
 
   // 編集中の項目
   const [editingId, setEditingId] = useState(null);
@@ -175,6 +181,36 @@ function TodoApp({ onLogout }) {
   }, [categories]);
 
   const getCategory = (v) => categoryMap.get(v) ?? FALLBACK_CATEGORY;
+
+  // 最上位カテゴリ（親を持たないもの）。サブカテゴリの親候補に使う。
+  const topCategories = useMemo(
+    () => categories.filter((c) => !c.parent),
+    [categories]
+  );
+
+  // 親→子の順に並べ、各カテゴリに階層の深さ(depth)を付与した一覧。
+  // セレクトボックスやカテゴリ管理での階層表示に使う。
+  const orderedCategories = useMemo(() => {
+    const out = [];
+    const seen = new Set();
+    categories
+      .filter((c) => !c.parent)
+      .forEach((parent) => {
+        out.push({ ...parent, depth: 0 });
+        seen.add(parent.value);
+        categories
+          .filter((c) => c.parent === parent.value)
+          .forEach((child) => {
+            out.push({ ...child, depth: 1 });
+            seen.add(child.value);
+          });
+      });
+    // 親が存在しない孤立サブカテゴリは最上位として拾う
+    categories.forEach((c) => {
+      if (!seen.has(c.value)) out.push({ ...c, depth: 0 });
+    });
+    return out;
+  }, [categories]);
 
   // 初回: サーバーから読み込む
   useEffect(() => {
@@ -274,11 +310,17 @@ function TodoApp({ onLogout }) {
     try {
       const created = await api("/api/categories", {
         method: "POST",
-        body: JSON.stringify({ label, bg: palette.bg, text: palette.text }),
+        body: JSON.stringify({
+          label,
+          bg: palette.bg,
+          text: palette.text,
+          parent: newCategoryParent || null,
+        }),
       });
       setCategories((prev) => [...prev, created]);
       setCategory(created.value);
       setNewCategory("");
+      setNewCategoryParent("");
       setCategoryError("");
     } catch (err) {
       setCategoryError(err.message);
@@ -287,20 +329,33 @@ function TodoApp({ onLogout }) {
 
   async function deleteCategory(value) {
     await api(`/api/categories/${value}`, { method: "DELETE" });
-    setCategories((prev) => prev.filter((c) => c.value !== value));
+    // DB側は ON DELETE SET NULL で子の親を外すので、ローカルも合わせる
+    setCategories((prev) =>
+      prev
+        .filter((c) => c.value !== value)
+        .map((c) => (c.parent === value ? { ...c, parent: null } : c))
+    );
     if (category === value) setCategory(categories[0]?.value ?? "");
     if (filterCategory === value) setFilterCategory("all");
   }
+
+  // カテゴリフィルター判定。親カテゴリを選んだら、その子カテゴリの項目も含める。
+  const matchesCategoryFilter = (todoCat) => {
+    if (filterCategory === "all") return true;
+    if (todoCat === filterCategory) return true;
+    return categoryMap.get(todoCat)?.parent === filterCategory;
+  };
 
   // フィルター適用後のリスト
   const visibleTodos = useMemo(
     () =>
       todos.filter(
         (t) =>
-          (filterCategory === "all" || t.category === filterCategory) &&
+          matchesCategoryFilter(t.category) &&
           (filterPriority === "all" || t.priority === filterPriority)
       ),
-    [todos, filterCategory, filterPriority]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [todos, filterCategory, filterPriority, categoryMap]
   );
 
   // ----- 並び替え（ドラッグ&ドロップ） -----
@@ -344,6 +399,62 @@ function TodoApp({ onLogout }) {
   const rate = total === 0 ? 0 : Math.round((done / total) * 100);
 
   const isCustomCategory = (value) => !categoryMap.get(value)?.isDefault;
+
+  // ----- メモ出力（選択した項目をテキスト化） -----
+  function toggleSelectMode() {
+    setSelectMode((on) => {
+      if (on) setSelectedIds(new Set()); // 解除時は選択をクリア
+      return !on;
+    });
+  }
+
+  function toggleSelected(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    setSelectedIds(new Set(visibleTodos.map((t) => t.id)));
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  // 選択中の項目をMarkdownのチェックリストに整形する
+  function buildMemo(items) {
+    return items
+      .map((t) => {
+        const cat = getCategory(t.category);
+        const parts = [
+          `カテゴリ: ${cat.label}`,
+          `優先度: ${priorityLabel(t.priority)}`,
+        ];
+        if (t.dueDate) {
+          const overdue = !t.completed && isOverdue(t.dueDate);
+          parts.push(`締切: ${formatDate(t.dueDate)}${overdue ? "（期限切れ）" : ""}`);
+        }
+        return `- [${t.completed ? "x" : " "}] ${t.text}（${parts.join(" / ")}）`;
+      })
+      .join("\n");
+  }
+
+  async function exportMemo() {
+    // todos の並び順を保ったまま、選択された項目だけ抽出
+    const items = todos.filter((t) => selectedIds.has(t.id));
+    if (items.length === 0) return;
+    const header = `# Todoメモ（${new Date().toISOString().slice(0, 10)}）\n\n`;
+    const text = header + buildMemo(items);
+    setMemoText(text);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // クリップボードが使えない場合はモーダルから手動コピーしてもらう
+    }
+  }
 
   if (!loaded) {
     return <main className={styles.loading}>読み込み中...</main>;
@@ -418,9 +529,9 @@ function TodoApp({ onLogout }) {
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                {categories.map((c) => (
+                {orderedCategories.map((c) => (
                   <option key={c.value} value={c.value}>
-                    {c.label}
+                    {c.depth ? `　└ ${c.label}` : c.label}
                   </option>
                 ))}
               </select>
@@ -443,7 +554,10 @@ function TodoApp({ onLogout }) {
             label="カテゴリ"
             options={[
               { value: "all", label: "すべて" },
-              ...categories.map((c) => ({ value: c.value, label: c.label })),
+              ...orderedCategories.map((c) => ({
+                value: c.value,
+                label: c.depth ? `└ ${c.label}` : c.label,
+              })),
             ]}
             value={filterCategory}
             onChange={setFilterCategory}
@@ -454,6 +568,47 @@ function TodoApp({ onLogout }) {
             value={filterPriority}
             onChange={setFilterPriority}
           />
+        </div>
+
+        {/* メモ出力ツールバー */}
+        <div className={styles.listToolbar}>
+          <button
+            type="button"
+            className={`${styles.memoToggle} ${
+              selectMode ? styles.memoToggleActive : ""
+            }`}
+            onClick={toggleSelectMode}
+          >
+            {selectMode ? "選択をやめる" : "📋 メモ出力"}
+          </button>
+          {selectMode && (
+            <div className={styles.memoActions}>
+              <span className={styles.memoCount}>{selectedIds.size}件選択</span>
+              <button
+                type="button"
+                className={styles.memoSubButton}
+                onClick={selectAllVisible}
+              >
+                表示中を全選択
+              </button>
+              <button
+                type="button"
+                className={styles.memoSubButton}
+                onClick={clearSelection}
+                disabled={selectedIds.size === 0}
+              >
+                選択解除
+              </button>
+              <button
+                type="button"
+                className={styles.memoCopyButton}
+                onClick={exportMemo}
+                disabled={selectedIds.size === 0}
+              >
+                メモにコピー
+              </button>
+            </div>
+          )}
         </div>
 
         {/* リスト（ドラッグで並び替え可能） */}
@@ -479,8 +634,11 @@ function TodoApp({ onLogout }) {
                   key={todo.id}
                   todo={todo}
                   isEditing={editingId === todo.id}
-                  categories={categories}
+                  categories={orderedCategories}
                   getCategory={getCategory}
+                  selectMode={selectMode}
+                  selected={selectedIds.has(todo.id)}
+                  onToggleSelect={toggleSelected}
                   toggleTodo={toggleTodo}
                   deleteTodo={deleteTodo}
                   startEdit={startEdit}
@@ -503,20 +661,28 @@ function TodoApp({ onLogout }) {
 
       {showSettings && (
         <SettingsModal
-          categories={categories}
+          orderedCategories={orderedCategories}
+          topCategories={topCategories}
           isCustomCategory={isCustomCategory}
           deleteCategory={deleteCategory}
           addCategory={addCategory}
           newCategory={newCategory}
           setNewCategory={setNewCategory}
+          newCategoryParent={newCategoryParent}
+          setNewCategoryParent={setNewCategoryParent}
           categoryError={categoryError}
           setCategoryError={setCategoryError}
           onClose={() => {
             setShowSettings(false);
             setNewCategory("");
+            setNewCategoryParent("");
             setCategoryError("");
           }}
         />
+      )}
+
+      {memoText !== null && (
+        <MemoModal text={memoText} onClose={() => setMemoText(null)} />
       )}
     </main>
   );
@@ -524,12 +690,15 @@ function TodoApp({ onLogout }) {
 
 // ===================== 設定モーダル（カテゴリ管理） =====================
 function SettingsModal({
-  categories,
+  orderedCategories,
+  topCategories,
   isCustomCategory,
   deleteCategory,
   addCategory,
   newCategory,
   setNewCategory,
+  newCategoryParent,
+  setNewCategoryParent,
   categoryError,
   setCategoryError,
   onClose,
@@ -566,47 +735,139 @@ function SettingsModal({
 
         <section className={styles.modalSection}>
           <span className={styles.categoryManagerLabel}>カテゴリ管理</span>
-          <div className={styles.categoryTags}>
-            {categories.map((c) => (
-              <span
+          <div className={styles.categoryTree}>
+            {orderedCategories.map((c) => (
+              <div
                 key={c.value}
-                className={styles.categoryTag}
-                style={{ background: c.bg, color: c.text }}
+                className={styles.categoryTreeRow}
+                style={{ paddingLeft: c.depth ? 18 : 0 }}
               >
-                {c.label}
-                {isCustomCategory(c.value) && (
-                  <button
-                    type="button"
-                    className={styles.categoryTagDelete}
-                    onClick={() => deleteCategory(c.value)}
-                    aria-label={`カテゴリ「${c.label}」を削除`}
-                    title="このカテゴリを削除"
-                  >
-                    ×
-                  </button>
+                {c.depth > 0 && (
+                  <span className={styles.categoryTreeBranch}>└</span>
                 )}
-              </span>
+                <span
+                  className={styles.categoryTag}
+                  style={{ background: c.bg, color: c.text }}
+                >
+                  {c.label}
+                  {isCustomCategory(c.value) && (
+                    <button
+                      type="button"
+                      className={styles.categoryTagDelete}
+                      onClick={() => deleteCategory(c.value)}
+                      aria-label={`カテゴリ「${c.label}」を削除`}
+                      title="このカテゴリを削除"
+                    >
+                      ×
+                    </button>
+                  )}
+                </span>
+              </div>
             ))}
           </div>
-          <form onSubmit={addCategory} className={styles.categoryAddRow}>
-            <input
-              className={styles.categoryInput}
-              type="text"
-              value={newCategory}
-              onChange={(e) => {
-                setNewCategory(e.target.value);
-                if (categoryError) setCategoryError("");
-              }}
-              placeholder="新しいカテゴリ名..."
-              aria-label="新しいカテゴリ名"
-            />
-            <button type="submit" className={styles.categoryAddButton}>
-              作成
-            </button>
+          <form onSubmit={addCategory} className={styles.categoryAddForm}>
+            <div className={styles.categoryAddRow}>
+              <input
+                className={styles.categoryInput}
+                type="text"
+                value={newCategory}
+                onChange={(e) => {
+                  setNewCategory(e.target.value);
+                  if (categoryError) setCategoryError("");
+                }}
+                placeholder="新しいカテゴリ名..."
+                aria-label="新しいカテゴリ名"
+              />
+              <button type="submit" className={styles.categoryAddButton}>
+                作成
+              </button>
+            </div>
+            <label className={styles.categoryParentField}>
+              <span className={styles.categoryParentLabel}>親カテゴリ</span>
+              <select
+                className={styles.select}
+                value={newCategoryParent}
+                onChange={(e) => setNewCategoryParent(e.target.value)}
+              >
+                <option value="">なし（最上位）</option>
+                {topCategories.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </form>
           {categoryError && (
             <span className={styles.categoryError}>{categoryError}</span>
           )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+// ===================== メモ出力モーダル =====================
+function MemoModal({ text, onClose }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-label="メモ出力"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className={styles.modalHeader}>
+          <h2 className={styles.modalTitle}>メモ出力</h2>
+          <button
+            type="button"
+            className={styles.modalClose}
+            onClick={onClose}
+            aria-label="閉じる"
+          >
+            ×
+          </button>
+        </header>
+        <section className={styles.modalSection}>
+          <p className={styles.memoHint}>
+            クリップボードにコピーしました。Claude Codeなどに貼り付けて使えます。
+          </p>
+          <textarea
+            className={styles.memoTextarea}
+            value={text}
+            readOnly
+            rows={Math.min(14, text.split("\n").length + 1)}
+            onFocus={(e) => e.target.select()}
+          />
+          <div className={styles.editActions}>
+            <button type="button" className={styles.cancelButton} onClick={onClose}>
+              閉じる
+            </button>
+            <button type="button" className={styles.saveButton} onClick={copy}>
+              {copied ? "コピーしました ✓" : "コピー"}
+            </button>
+          </div>
         </section>
       </div>
     </div>
@@ -619,6 +880,9 @@ function SortableTodoItem({
   isEditing,
   categories,
   getCategory,
+  selectMode,
+  selected,
+  onToggleSelect,
   toggleTodo,
   deleteTodo,
   startEdit,
@@ -640,7 +904,7 @@ function SortableTodoItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: todo.id, disabled: isEditing });
+  } = useSortable({ id: todo.id, disabled: isEditing || selectMode });
 
   // 削除の確認状態（誤操作防止のためワンクッション置く）
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -695,7 +959,7 @@ function SortableTodoItem({
               >
                 {categories.map((c) => (
                   <option key={c.value} value={c.value}>
-                    {c.label}
+                    {c.depth ? `　└ ${c.label}` : c.label}
                   </option>
                 ))}
               </select>
@@ -731,6 +995,52 @@ function SortableTodoItem({
   const overdue = !todo.completed && isOverdue(todo.dueDate);
   const cat = getCategory(todo.category);
 
+  const metaBlock = (
+    <div className={styles.meta}>
+      <span className={styles.badge} style={{ background: cat.bg, color: cat.text }}>
+        {cat.label}
+      </span>
+      <span className={`${styles.badge} ${styles[`pri_${todo.priority}`]}`}>
+        優先度: {priorityLabel(todo.priority)}
+      </span>
+      {todo.dueDate && (
+        <span className={`${styles.due} ${overdue ? styles.overdue : ""}`}>
+          📅 {formatDate(todo.dueDate)}
+          {overdue ? "（期限切れ）" : ""}
+        </span>
+      )}
+    </div>
+  );
+
+  // メモ出力の選択モード：行全体で選択をトグルする
+  if (selectMode) {
+    return (
+      <li
+        className={`${styles.item} ${styles[`p_${todo.priority}`]} ${
+          styles.selectable
+        } ${selected ? styles.selected : ""}`}
+        onClick={() => onToggleSelect(todo.id)}
+      >
+        <input
+          type="checkbox"
+          className={styles.selectCheck}
+          checked={selected}
+          onChange={() => onToggleSelect(todo.id)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label="メモに含める項目を選択"
+        />
+        <div className={styles.body}>
+          <span
+            className={`${styles.text} ${todo.completed ? styles.completed : ""}`}
+          >
+            {todo.text}
+          </span>
+          {metaBlock}
+        </div>
+      </li>
+    );
+  }
+
   return (
     <li
       ref={setNodeRef}
@@ -765,23 +1075,7 @@ function SortableTodoItem({
         >
           {todo.text}
         </span>
-        <div className={styles.meta}>
-          <span
-            className={styles.badge}
-            style={{ background: cat.bg, color: cat.text }}
-          >
-            {cat.label}
-          </span>
-          <span className={`${styles.badge} ${styles[`pri_${todo.priority}`]}`}>
-            優先度: {priorityLabel(todo.priority)}
-          </span>
-          {todo.dueDate && (
-            <span className={`${styles.due} ${overdue ? styles.overdue : ""}`}>
-              📅 {formatDate(todo.dueDate)}
-              {overdue ? "（期限切れ）" : ""}
-            </span>
-          )}
-        </div>
+        {metaBlock}
       </div>
 
       {confirmingDelete ? (

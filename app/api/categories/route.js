@@ -10,6 +10,7 @@ function toClient(row) {
     bg: row.bg,
     text: row.text,
     isDefault: row.is_default,
+    parent: row.parent ?? null,
   };
 }
 
@@ -38,8 +39,10 @@ export async function POST(request) {
     return NextResponse.json({ error: "カテゴリ名が空です" }, { status: 400 });
   }
 
+  const supabase = getSupabaseAdmin();
+
   // 同名チェック
-  const { data: existing } = await getSupabaseAdmin()
+  const { data: existing } = await supabase
     .from("categories")
     .select("value")
     .eq("label", label)
@@ -51,15 +54,43 @@ export async function POST(request) {
     );
   }
 
-  const { data, error } = await getSupabaseAdmin()
+  // 親カテゴリの検証（指定時）。階層は2段までに制限するため、
+  // 親に指定できるのは最上位カテゴリ（parent が無い）のみ。
+  let parent = body.parent || null;
+  if (parent) {
+    const { data: parentRow } = await supabase
+      .from("categories")
+      .select("value, parent")
+      .eq("value", parent)
+      .maybeSingle();
+    if (!parentRow) {
+      return NextResponse.json(
+        { error: "指定された親カテゴリが見つかりません" },
+        { status: 400 }
+      );
+    }
+    if (parentRow.parent) {
+      return NextResponse.json(
+        { error: "サブカテゴリの下にさらにカテゴリは作れません" },
+        { status: 400 }
+      );
+    }
+  }
+
+  const insertRow = {
+    value: randomUUID(),
+    label,
+    bg: body.bg || "#e5e7eb",
+    text: body.text || "#4b5563",
+    is_default: false,
+  };
+  // parent はマイグレーション適用後にのみ存在する列なので、
+  // 指定があるときだけ含める（未適用環境でも最上位カテゴリは作れる）。
+  if (parent) insertRow.parent = parent;
+
+  const { data, error } = await supabase
     .from("categories")
-    .insert({
-      value: randomUUID(),
-      label,
-      bg: body.bg || "#e5e7eb",
-      text: body.text || "#4b5563",
-      is_default: false,
-    })
+    .insert(insertRow)
     .select()
     .single();
 
