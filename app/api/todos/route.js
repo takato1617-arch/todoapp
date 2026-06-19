@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseServer";
-import { isAuthenticated } from "@/lib/auth";
+import { getCurrentUserId } from "@/lib/auth";
 
 // DBの行（snake_case）をフロント用（camelCase）に変換
 function toClient(row) {
@@ -18,12 +18,14 @@ function toClient(row) {
 
 // 一覧取得（position昇順＝上から下。未設定は作成日時の新しい順）
 export async function GET() {
-  if (!isAuthenticated()) {
+  const userId = getCurrentUserId();
+  if (!userId) {
     return NextResponse.json({ error: "未認証" }, { status: 401 });
   }
   const { data, error } = await getSupabaseAdmin()
     .from("todos")
     .select("*")
+    .eq("owner", userId)
     .order("position", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
 
@@ -33,7 +35,8 @@ export async function GET() {
 
 // 新規作成（先頭に来るよう、既存の最小positionより小さい値を割り当てる）
 export async function POST(request) {
-  if (!isAuthenticated()) {
+  const userId = getCurrentUserId();
+  if (!userId) {
     return NextResponse.json({ error: "未認証" }, { status: 401 });
   }
   const body = await request.json().catch(() => ({}));
@@ -44,10 +47,11 @@ export async function POST(request) {
 
   const supabase = getSupabaseAdmin();
 
-  // 現在の先頭（最小position）の手前に入れる
+  // 現在の先頭（最小position）の手前に入れる（自分の項目の中で）
   const { data: top } = await supabase
     .from("todos")
     .select("position")
+    .eq("owner", userId)
     .order("position", { ascending: true, nullsFirst: false })
     .limit(1)
     .maybeSingle();
@@ -62,6 +66,7 @@ export async function POST(request) {
       due_date: body.dueDate || null,
       completed: false,
       position: newPosition,
+      owner: userId,
     })
     .select()
     .single();

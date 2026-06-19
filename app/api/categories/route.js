@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabaseServer";
-import { isAuthenticated } from "@/lib/auth";
+import { getCurrentUserId } from "@/lib/auth";
 
 function toClient(row) {
   return {
@@ -16,12 +16,14 @@ function toClient(row) {
 
 // 一覧取得（作成順）
 export async function GET() {
-  if (!isAuthenticated()) {
+  const userId = getCurrentUserId();
+  if (!userId) {
     return NextResponse.json({ error: "未認証" }, { status: 401 });
   }
   const { data, error } = await getSupabaseAdmin()
     .from("categories")
     .select("*")
+    .eq("owner", userId)
     .order("created_at", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -30,7 +32,8 @@ export async function GET() {
 
 // 新規作成
 export async function POST(request) {
-  if (!isAuthenticated()) {
+  const userId = getCurrentUserId();
+  if (!userId) {
     return NextResponse.json({ error: "未認証" }, { status: 401 });
   }
   const body = await request.json().catch(() => ({}));
@@ -41,10 +44,11 @@ export async function POST(request) {
 
   const supabase = getSupabaseAdmin();
 
-  // 同名チェック
+  // 同名チェック（自分のカテゴリの中で）
   const { data: existing } = await supabase
     .from("categories")
     .select("value")
+    .eq("owner", userId)
     .eq("label", label)
     .maybeSingle();
   if (existing) {
@@ -62,6 +66,7 @@ export async function POST(request) {
       .from("categories")
       .select("value, parent")
       .eq("value", parent)
+      .eq("owner", userId)
       .maybeSingle();
     if (!parentRow) {
       return NextResponse.json(
@@ -83,6 +88,7 @@ export async function POST(request) {
     bg: body.bg || "#e5e7eb",
     text: body.text || "#4b5563",
     is_default: false,
+    owner: userId,
   };
   // parent はマイグレーション適用後にのみ存在する列なので、
   // 指定があるときだけ含める（未適用環境でも最上位カテゴリは作れる）。

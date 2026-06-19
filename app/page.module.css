@@ -791,6 +791,21 @@
   color: #dc2626;
 }
 
+.gateSwitch {
+  margin-top: 16px;
+  background: none;
+  border: none;
+  color: #059669;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.gateSwitch:hover {
+  color: #047857;
+}
+
 .loading {
   min-height: 100vh;
   display: flex;

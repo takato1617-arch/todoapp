@@ -73,11 +73,23 @@ async function api(path, options) {
 export default function Home() {
   // 認証状態: "checking" | "out" | "in"
   const [authState, setAuthState] = useState("checking");
+  // ログイン中のユーザー名（ヘッダー表示用）
+  const [userName, setUserName] = useState("");
+  // 新規登録に招待合言葉が必要か
+  const [inviteRequired, setInviteRequired] = useState(true);
 
   // 起動時にセッションを確認
   useEffect(() => {
     api("/api/session")
-      .then((d) => setAuthState(d.authenticated ? "in" : "out"))
+      .then((d) => {
+        if (d.authenticated) {
+          setUserName(d.name || "");
+          setAuthState("in");
+        } else {
+          setInviteRequired(d.inviteRequired !== false);
+          setAuthState("out");
+        }
+      })
       .catch(() => setAuthState("out"));
   }, []);
 
@@ -85,28 +97,61 @@ export default function Home() {
     return <main className={styles.loading}>読み込み中...</main>;
   }
   if (authState === "out") {
-    return <LoginGate onSuccess={() => setAuthState("in")} />;
+    return (
+      <LoginGate
+        inviteRequired={inviteRequired}
+        onSuccess={(name) => {
+          setUserName(name || "");
+          setAuthState("in");
+        }}
+      />
+    );
   }
-  return <TodoApp onLogout={() => setAuthState("out")} />;
+  return (
+    <TodoApp
+      userName={userName}
+      onLogout={() => {
+        setUserName("");
+        setAuthState("out");
+      }}
+    />
+  );
 }
 
-// ===================== ログイン画面 =====================
-function LoginGate({ onSuccess }) {
-  const [passphrase, setPassphrase] = useState("");
+// ===================== ログイン / 新規登録画面 =====================
+function LoginGate({ onSuccess, inviteRequired }) {
+  // "login"（ログイン） | "register"（新規登録）
+  const [mode, setMode] = useState("login");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [invite, setInvite] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const isRegister = mode === "register";
+
+  function switchMode(next) {
+    setMode(next);
+    setError("");
+    setPassword("");
+    setInvite("");
+  }
+
   async function submit(e) {
     e.preventDefault();
-    if (!passphrase) return;
+    if (!name.trim() || !password) return;
     setSubmitting(true);
     setError("");
     try {
-      await api("/api/login", {
+      const path = isRegister ? "/api/register" : "/api/login";
+      const body = isRegister
+        ? { name, password, invite }
+        : { name, password };
+      const result = await api(path, {
         method: "POST",
-        body: JSON.stringify({ passphrase }),
+        body: JSON.stringify(body),
       });
-      onSuccess();
+      onSuccess(result?.name || name.trim());
     } catch (err) {
       setError(err.message);
     } finally {
@@ -118,27 +163,66 @@ function LoginGate({ onSuccess }) {
     <main className={styles.gate}>
       <form className={styles.gateCard} onSubmit={submit}>
         <h1 className={styles.gateTitle}>Todo</h1>
-        <p className={styles.gateSubtitle}>合言葉を入力してください</p>
+        <p className={styles.gateSubtitle}>
+          {isRegister
+            ? "名前とパスワードでアカウントを作成"
+            : "名前とパスワードでログイン"}
+        </p>
         <input
           className={styles.gateInput}
-          type="password"
-          value={passphrase}
-          onChange={(e) => setPassphrase(e.target.value)}
-          placeholder="合言葉"
-          aria-label="合言葉"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="名前"
+          aria-label="名前"
           autoFocus
+          autoComplete="username"
         />
+        <input
+          className={styles.gateInput}
+          style={{ marginTop: 10 }}
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="パスワード"
+          aria-label="パスワード"
+          autoComplete={isRegister ? "new-password" : "current-password"}
+        />
+        {isRegister && inviteRequired && (
+          <input
+            className={styles.gateInput}
+            style={{ marginTop: 10 }}
+            type="password"
+            value={invite}
+            onChange={(e) => setInvite(e.target.value)}
+            placeholder="招待合言葉"
+            aria-label="招待合言葉"
+          />
+        )}
         <button className={styles.gateButton} type="submit" disabled={submitting}>
-          {submitting ? "確認中..." : "入る"}
+          {submitting
+            ? "処理中..."
+            : isRegister
+            ? "アカウント作成"
+            : "ログイン"}
         </button>
         {error && <p className={styles.gateError}>{error}</p>}
+        <button
+          type="button"
+          className={styles.gateSwitch}
+          onClick={() => switchMode(isRegister ? "login" : "register")}
+        >
+          {isRegister
+            ? "アカウントをお持ちの方はこちら"
+            : "新規登録はこちら"}
+        </button>
       </form>
     </main>
   );
 }
 
 // ===================== Todo本体 =====================
-function TodoApp({ onLogout }) {
+function TodoApp({ onLogout, userName }) {
   const [todos, setTodos] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -454,6 +538,7 @@ function TodoApp({ onLogout }) {
           <div>
             <h1 className={styles.title}>Todo</h1>
             <p className={styles.subtitle}>
+              {userName ? `${userName}さん · ` : ""}
               {done} / {total} 完了
             </p>
           </div>
