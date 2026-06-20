@@ -542,8 +542,7 @@ function TodoApp({ onLogout, userName }) {
     // todos の並び順を保ったまま、選択された項目だけ抽出
     const items = todos.filter((t) => selectedIds.has(t.id));
     if (items.length === 0) return;
-    const header = `# Todoメモ（${new Date().toISOString().slice(0, 10)}）\n\n`;
-    const text = header + buildMemo(items);
+    const text = buildMemo(items);
     setMemoText(text);
     try {
       await navigator.clipboard.writeText(text);
