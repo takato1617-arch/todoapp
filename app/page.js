@@ -227,6 +227,7 @@ function TodoApp({ onLogout, userName }) {
   const [categories, setCategories] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [reloading, setReloading] = useState(false);
 
   const [input, setInput] = useState("");
   const [priority, setPriority] = useState("medium");
@@ -318,6 +319,30 @@ function TodoApp({ onLogout, userName }) {
   async function logout() {
     await api("/api/logout", { method: "POST" }).catch(() => {});
     onLogout();
+  }
+
+  // サーバーから最新のTodo・カテゴリを取り直す
+  async function reload() {
+    if (reloading) return;
+    setReloading(true);
+    setLoadError("");
+    try {
+      const [t, c] = await Promise.all([
+        api("/api/todos"),
+        api("/api/categories"),
+      ]);
+      setTodos(t);
+      setCategories(c);
+      // 選択中カテゴリが消えていたら先頭に寄せる
+      setCategory((prev) =>
+        c.some((x) => x.value === prev) ? prev : c[0]?.value ?? ""
+      );
+    } catch (err) {
+      if (err.status === 401) onLogout();
+      else setLoadError(err.message);
+    } finally {
+      setReloading(false);
+    }
   }
 
   async function addTodo(e) {
@@ -560,6 +585,17 @@ function TodoApp({ onLogout, userName }) {
           </div>
           <div className={styles.headerActions}>
             <ProgressRing rate={rate} />
+            <button
+              className={`${styles.reloadButton} ${
+                reloading ? styles.reloadButtonSpinning : ""
+              }`}
+              onClick={reload}
+              disabled={reloading}
+              aria-label="再読み込み"
+              title="再読み込み"
+            >
+              ↻
+            </button>
             <button
               className={styles.settingsButton}
               onClick={() => setShowSettings(true)}
