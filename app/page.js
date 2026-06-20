@@ -527,6 +527,22 @@ function TodoApp({ onLogout, userName }) {
     }
   }
 
+  // メモ出力後、チェックした項目をまとめて削除する
+  async function deleteSelectedTodos() {
+    const ids = todos.filter((t) => selectedIds.has(t.id)).map((t) => t.id);
+    if (ids.length === 0) return;
+    if (editingId && selectedIds.has(editingId)) cancelEdit();
+    await Promise.all(
+      ids.map((id) =>
+        api(`/api/todos/${id}`, { method: "DELETE" }).catch(() => {})
+      )
+    );
+    setTodos((prev) => prev.filter((t) => !selectedIds.has(t.id)));
+    setSelectedIds(new Set());
+    setSelectMode(false);
+    setMemoText(null);
+  }
+
   if (!loaded) {
     return <main className={styles.loading}>読み込み中...</main>;
   }
@@ -754,7 +770,12 @@ function TodoApp({ onLogout, userName }) {
       )}
 
       {memoText !== null && (
-        <MemoModal text={memoText} onClose={() => setMemoText(null)} />
+        <MemoModal
+          text={memoText}
+          selectedCount={selectedIds.size}
+          onDeleteSelected={deleteSelectedTodos}
+          onClose={() => setMemoText(null)}
+        />
       )}
     </main>
   );
@@ -880,8 +901,10 @@ function SettingsModal({
 }
 
 // ===================== メモ出力モーダル =====================
-function MemoModal({ text, onClose }) {
+function MemoModal({ text, selectedCount = 0, onDeleteSelected, onClose }) {
   const [copied, setCopied] = useState(false);
+  // チェックした項目の削除確認（誤操作防止のためワンクッション置く）
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -940,6 +963,40 @@ function MemoModal({ text, onClose }) {
               {copied ? "コピーしました ✓" : "コピー"}
             </button>
           </div>
+          {selectedCount > 0 &&
+            (confirmingDelete ? (
+              <div
+                className={styles.confirmBar}
+                role="alertdialog"
+                aria-label="削除の確認"
+              >
+                <span className={styles.confirmText}>
+                  チェックした{selectedCount}件を削除しますか？
+                </span>
+                <button
+                  type="button"
+                  className={styles.confirmCancel}
+                  onClick={() => setConfirmingDelete(false)}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  className={styles.confirmDelete}
+                  onClick={onDeleteSelected}
+                >
+                  削除
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={styles.memoDeleteButton}
+                onClick={() => setConfirmingDelete(true)}
+              >
+                🗑 チェックした項目を削除（{selectedCount}件）
+              </button>
+            ))}
         </section>
       </div>
     </div>

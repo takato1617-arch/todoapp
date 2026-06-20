@@ -1047,6 +1047,27 @@
   color: #6b7280;
 }
 
+.memoDeleteButton {
+  align-self: flex-start;
+  border: 1px solid #fecaca;
+  background: #fff5f5;
+  color: #dc2626;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.memoDeleteButton:hover {
+  background: #fee2e2;
+}
+
+.memoDeleteButton:active {
+  transform: scale(0.97);
+}
+
 .memoTextarea {
   width: 100%;
   border: 1px solid #e5e7eb;
