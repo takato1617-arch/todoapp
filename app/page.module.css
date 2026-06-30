@@ -677,6 +677,15 @@
   gap: 12px;
 }
 
+/*
+ * 編集欄のtextarea(.input)は .input の flex:1 を縦flex内で受けると
+ * JSで設定した自動拡張の高さが潰れてしまう。ここで flex を無効化し、
+ * 内容に合わせた高さ（height）が尊重されるようにする。
+ */
+.editForm .input {
+  flex: 0 0 auto;
+}
+
 .editActions {
   display: flex;
   justify-content: flex-end;
