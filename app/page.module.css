@@ -68,18 +68,28 @@
 
 .inputRow {
   display: flex;
+  align-items: flex-end;
   gap: 10px;
   margin-bottom: 12px;
 }
 
 .input {
   flex: 1;
+  min-width: 0;
   padding: 13px 16px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   font-size: 15px;
+  font-family: inherit;
+  line-height: 1.5;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
+  /* textarea として: 手動リサイズは無効にして内容に合わせ自動で伸ばす */
+  resize: none;
+  overflow: hidden;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .input:focus {

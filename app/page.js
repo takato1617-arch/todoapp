@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -614,11 +614,11 @@ function TodoApp({ onLogout, userName }) {
         {/* 追加フォーム */}
         <form onSubmit={addTodo} className={styles.form}>
           <div className={styles.inputRow}>
-            <input
+            <AutoGrowTextarea
               className={styles.input}
-              type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onSubmit={addTodo}
               placeholder="やることを入力..."
               aria-label="新しいTodo"
             />
@@ -1091,11 +1091,11 @@ function SortableTodoItem({
         }`}
       >
         <form onSubmit={saveEdit} className={styles.editForm}>
-          <input
+          <AutoGrowTextarea
             className={styles.input}
-            type="text"
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
+            onSubmit={saveEdit}
             aria-label="Todoを編集"
             autoFocus
           />
@@ -1281,6 +1281,39 @@ function SortableTodoItem({
         </div>
       )}
     </li>
+  );
+}
+
+// 入力内容に合わせて高さが自動で伸びる textarea。
+// 長文のやることでも折り返して全文が見えるようにする。
+// Enterで送信、Shift+Enterで改行（onSubmit を渡したときのみ）。
+function AutoGrowTextarea({ value, onSubmit, className, ...rest }) {
+  const ref = useRef(null);
+
+  // 内容に合わせて高さを再計算する
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+
+  function handleKeyDown(e) {
+    if (onSubmit && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      onSubmit(e);
+    }
+  }
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      rows={1}
+      className={className}
+      onKeyDown={handleKeyDown}
+      {...rest}
+    />
   );
 }
 
